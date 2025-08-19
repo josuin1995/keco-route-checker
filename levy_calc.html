@@ -1,232 +1,227 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>폐기물처분부담금 사전계산 · 재활용 안내 (공식 배출계수 기반)</title>
-<style>
-  :root { --gap: 10px; --radius: 12px; --muted:#6b7280; --shadow: 0 10px 20px rgba(0,0,0,.08); }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', sans-serif; margin: 0; padding: 20px; background:#f8fafc; color:#111; }
-  h1 { margin:0 0 10px 0; font-size:22px; }
-  .wrap { max-width: 980px; margin:0 auto; }
-  .card { background:#fff; border:1px solid #e5e7eb; border-radius: var(--radius); padding:14px; box-shadow: var(--shadow); margin-bottom:12px; }
-  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-  select, input { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; }
-  .muted { color: var(--muted); font-size:12px; }
-  table { width:100%; border-collapse: collapse; font-size:13px; }
-  th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
-  th { background:#f4f6f8; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid #e5e7eb; background:#fafafa; }
-  .result { font-size:20px; font-weight:800; }
-  .foot { font-size:12px; color:#374151; }
-  .badge { display:inline-block; background:#ecfeff; color:#0e7490; border:1px solid #a5f3fc; padding:2px 8px; border-radius:999px; font-weight:700; font-size:12px; }
-  .sep { width:100%; height:1px; background:#eef2f7; margin:10px 0; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>폐기물처분부담금 계산 및 재활용 안내</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=h60h6qbl1u&submodules=geocoder"></script>
+  <style>
+    #map {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+  </style>
 </head>
-<body>
-  <div class="wrap">
-    <h1>폐기물처분부담금 사전계산 · 재활용 안내 <span class="badge">공식 배출계수 적용</span></h1>
-    <div class="muted" style="margin:6px 0 14px 0;">
-      온실가스 절감은 <b>IPCC 2006 가이드라인(Vol.5 Ch.2 Table 2.4)</b>의 <i>재질별 건조중량 탄소함량</i>과 <i>화석탄소 비율</i>,
-      <b>2019 Refinement(Vol.5 Ch.5 Table 5.2)</b>의 <i>산화율 100%</i>를 사용해 <u>소각 시 화석 CO₂ 배출</u>을 계산하고,
-      이를 재활용 시 <u>회피되는 배출량</u>으로 간주합니다. (CH₄/N₂O 미포함 / 에너지회수 미고려)
-    </div>
+<body class="bg-gray-100 text-gray-800">
+  <header class="bg-green-700 text-white p-4 text-center">
+    <h1 class="text-xl font-bold mt-2">폐기물처분부담금 사전 계산 및 재활용 안내</h1>
+  </header>
 
-    <div class="card">
-      <div class="row">
-        <label>재질/구성
-          <select id="material"></select>
-        </label>
-        <label>처리 시나리오
-          <select id="scenario">
-            <option value="recycle">재활용(소각 회피)</option>
-            <option value="incineration">소각(비교용 계산)</option>
-          </select>
-        </label>
-        <label>양 (톤, 습중량)
-          <input id="massTon" type="number" step="0.001" min="0" value="1">
-        </label>
-        <label>tCO₂ 기준가 (원/tCO₂) <span class="muted">환경보전가치 산정용 (선택)</span>
-          <input id="carbonPrice" type="number" step="1" min="0" value="0">
-        </label>
-        <button id="calcBtn">계산</button>
+  <main class="max-w-2xl mx-auto p-4 bg-white shadow-lg rounded-lg mt-6 space-y-6">
+    <!-- 폐기물 정보 입력 -->
+    <section>
+      <label class="block font-semibold">폐기물 유형</label>
+      <select id="wasteCategory" onchange="updateOptions()" class="w-full border rounded px-3 py-2">
+        <option value="business">사업장폐기물</option>
+        <option value="construction">건설폐기물</option>
+      </select>
+
+      <label class="block font-semibold mt-4">처리 방식</label>
+      <select id="disposalMethod" class="w-full border rounded px-3 py-2">
+        <option value="incineration">소각</option>
+        <option value="landfill">매립</option>
+      </select>
+
+      <div id="wasteTypeContainer">
+        <label class="block font-semibold mt-4">폐기물 특성 (사업장폐기물만 해당)</label>
+        <select id="wasteType" class="w-full border rounded px-3 py-2">
+          <option value="combustible">가연성</option>
+          <option value="non_combustible">불연성</option>
+        </select>
       </div>
-      <div class="sep"></div>
-      <div class="row">
-        <div>온실가스 <b>배출/절감</b>량: <span id="ghg" class="result">-</span> <span class="muted">tCO₂</span></div>
-        <div class="sep" style="height:0"></div>
-        <div>환경보전 가치(선택): <span id="valueKRW" class="result">-</span> <span class="muted">원</span></div>
+
+      <label class="block font-semibold mt-4">처분년도</label>
+      <select id="disposalYear" class="w-full border rounded px-3 py-2">
+        <option value="2018">2018</option>
+        <option value="2019">2019</option>
+        <option value="2020">2020</option>
+        <option value="2021">2021</option>
+        <option value="2022">2022</option>
+        <option value="2023">2023</option>
+        <option value="2024" selected>2024</option>
+        <option value="2025">2025</option>
+      </select>
+
+      <label class="block font-semibold mt-4">배출량 (kg)</label>
+      <input type="number" id="wasteAmount" class="w-full border rounded px-3 py-2" placeholder="예: 100" />
+
+      <button onclick="calculate()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-2 rounded font-semibold">
+        비용 계산
+      </button>
+    </section>
+
+    <!-- 결과 출력 -->
+    <section>
+      <div id="result" class="p-4 bg-gray-50 border rounded text-sm"></div>
+      <div class="mt-6">
+        <canvas id="costChart"></canvas>
       </div>
-      <div class="sep"></div>
-      <div id="formula" class="foot"></div>
-    </div>
+    </section>
 
-    <div class="card">
-      <b>동아시아 평균 MSW 구성(습중량 %)</b>
-      <div class="muted">IPCC 2019 Refinement Vol.5 Ch.2 Table 2.3 (Eastern Asia)</div>
-      <table id="compTable">
-        <thead><tr><th>구성</th><th>%</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <!-- 순환자원정보센터 링크 -->
+    <section class="mt-6 space-y-2">
+      <h2 class="text-lg font-bold">♻️ 순환자원정보센터 서비스</h2>
+      <a href="https://www.re.or.kr/circul/listPubCirculSup.do" target="_blank" class="block bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded">
+        ▶ 유통지원 신청 바로가기
+      </a>
+      <a href="https://www.re.or.kr/info/listTrtmPage.do" target="_blank" class="block bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-4 rounded">
+        ▶ 재활용 처리업체 찾기
+      </a>
+    </section>
 
-    <div class="card">
-      <b>사용한 기본계수</b>
-      <div class="muted">IPCC 2006 GL Vol.5 Ch.2 <b>Table 2.4</b> (재질별), 2019 Refinement Vol.5 Ch.5 <b>Table 5.2</b> (산화율)</div>
-      <table id="efTable">
-        <thead>
-          <tr>
-            <th>재질</th>
-            <th>건조율 DM<br>(%/습중량)</th>
-            <th>탄소함량 C<br>(%/건조중량)</th>
-            <th>화석탄소 비율<br>(%/총탄소)</th>
-            <th>소각 CO₂ 배출계수<br>(tCO₂/톤·습)</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="muted" style="margin-top:8px;">
-        배출계수 산식: <code>EF = DM × C × Fossil × (44/12) / 10000</code> (tCO₂/톤·습) — 산화율 100% 적용.
+    <!-- 지도 검색 -->
+    <section class="mt-10">
+      <h2 class="text-lg font-bold mb-2">📍 지역 기반 재활용 처리업체 위치 보기</h2>
+      <label for="regionInput" class="block font-semibold mb-1">지역명을 입력하세요 (예: 광주 재활용)</label>
+      <div class="flex gap-2">
+        <input type="text" id="regionInput" placeholder="예: 광주 재활용" class="flex-1 border rounded px-3 py-2" />
+        <button onclick="searchRegion()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">지도에 표시</button>
       </div>
-    </div>
+      <div id="map" class="mt-4"></div>
+    </section>
+  </main>
 
-    <div class="card foot">
-      <div><b>출처</b></div>
-      <ul>
-        <li>IPCC (2006). Guidelines for National GHG Inventories, Vol.5 Waste, Ch.2 <i>Waste Data</i>, Table 2.4. (재질별 건조율·탄소함량·화석탄소비율)</li>
-        <li>IPCC (2019). Refinement to the 2006 Guidelines, Vol.5 Waste, Ch.5 <i>Incineration and Open Burning</i>, Table 5.2 (산화율 100% 등 기본값)</li>
-        <li>IPCC (2019). Refinement Vol.5 Waste, Ch.2 Table 2.3 (동아시아 MSW 구성)</li>
-      </ul>
-      <div class="muted">※ 일자리창출 수치는 공식 고용유발계수 및 경제가치 입력이 필요하여 본 계산기에서는 제외했습니다. 원하시면 한국은행 산업연관표 고용유발계수를 연계해 드릴게요.</div>
-    </div>
-  </div>
+  <script>
+    let chart;
+    // IPCC 2006 GL Vol.5 Ch.2 Table 2.4 + 2019 Refinement Vol.5 (Eastern Asia mix)
+    // Weighted fossil CO2 from incineration; EF ≈ 0.20745 kgCO₂/kg (0.20745 tCO₂/t-wet)
+    const EF_MSW_EA_KGKG = 0.2074510533;
+    
+    const rateIndex = {
+      2018: 1, 2019: 1.019, 2020: 1.023, 2021: 1.024,
+      2022: 1.059, 2023: 1.132, 2024: 1.168, 2025: 1.192
+    };
 
-<script>
-// ---------- IPCC default parameters (Table 2.4, Table 5.2) ----------
-// Values are "default" columns from IPCC 2006 GL Vol.5 Ch.2 Table 2.4.
-// DM = dry matter fraction of wet weight (%), C = total carbon % of dry, fossil = fossil carbon fraction of total carbon (%).
-// EF formula (tCO2/ton-wet): EF = DM * C * fossil * (44/12) / 10000, oxidation=100% (2019 Refinement Table 5.2).
-const MATERIALS = [
-  { key:'paper',    name:'종이/판지',            DM:90, C:46, fossil:1 },
-  { key:'textile',  name:'섬유',                 DM:80, C:50, fossil:20 },
-  { key:'food',     name:'음식물',               DM:40, C:38, fossil:0 },
-  { key:'wood',     name:'목재',                 DM:85, C:50, fossil:0 },
-  { key:'garden',   name:'정원·공원 식물성',     DM:40, C:49, fossil:0 },
-  { key:'nappies',  name:'기저귀(혼합재질)',     DM:40, C:70, fossil:10 },
-  { key:'rubber',   name:'고무·가죽',            DM:84, C:67, fossil:20 },
-  { key:'plastic',  name:'플라스틱',             DM:100, C:75, fossil:100 },
-  { key:'metal',    name:'금속',                 DM:100, C:0, fossil:0 },
-  { key:'glass',    name:'유리',                 DM:100, C:0, fossil:0 },
-  { key:'inert',    name:'기타 불활성(재)',       DM:90, C:3, fossil:100 }
-];
+    function updateOptions() {
+      const category = document.getElementById("wasteCategory").value;
+      const wasteTypeContainer = document.getElementById("wasteTypeContainer");
+      wasteTypeContainer.style.display = category === "business" ? "block" : "none";
+    }
 
-// Eastern Asia MSW composition (%) from IPCC 2019 Refinement Vol.5 Ch.2 Table 2.3
-const EAST_ASIA_COMPOSITION = [
-  ['음식물', 40.3],
-  ['정원·공원 식물성', 0.0],
-  ['종이/판지', 20.4],
-  ['목재', 2.1],
-  ['섬유', 1.0],
-  ['기저귀(혼합재질)', 0.0],
-  ['고무·가죽', 0.0],
-  ['플라스틱', 6.5],
-  ['금속', 2.7],
-  ['유리', 4.3],
-  ['기타 불활성(재)', 22.9]
-];
+    function calculate() {
+      const category = document.getElementById("wasteCategory").value;
+      const disposalMethod = document.getElementById("disposalMethod").value;
+      const wasteType = document.getElementById("wasteType").value;
+      const disposalYear = document.getElementById("disposalYear").value;
+      const wasteAmount = parseFloat(document.getElementById("wasteAmount").value);
 
-// Fill material dropdown (+ 'MSW(동아시아 평균)')
-function initMaterials(){
-  const sel = document.getElementById('material');
-  MATERIALS.forEach(m => {
-    const op = document.createElement('option');
-    op.value = m.key; op.textContent = m.name; sel.appendChild(op);
-  });
-  const op2 = document.createElement('option');
-  op2.value = 'msw_ea'; op2.textContent = 'MSW(동아시아 평균 구성 가정)'; sel.appendChild(op2);
-}
+      if (isNaN(wasteAmount) || wasteAmount <= 0) {
+        alert("유효한 배출량(kg)을 입력해주세요.");
+        return;
+      }
 
-// Compute incineration fossil CO2 EF for a material (tCO2 / ton-wet)
-function efFor(key){
-  const m = MATERIALS.find(x=> x.key===key);
-  if(!m) return 0;
-  const EF = (m.DM * m.C * m.fossil * (44/12)) / 10000.0;
-  return EF; // tCO2/t-wet
-}
+      const index = rateIndex[disposalYear];
+      let rate = 0;
 
-function formatKRW(n){
-  if (isNaN(n)) return '-';
-  return Math.round(n).toLocaleString('ko-KR');
-}
+      if (category === 'business') {
+        if (disposalMethod === 'incineration') rate = 10;
+        else if (disposalMethod === 'landfill') rate = (wasteType === 'combustible') ? 25 : 10;
+      } else if (category === 'construction') {
+        rate = (disposalMethod === 'incineration') ? 10 : 30;
+      }
 
-function calculate(){
-  const mat = document.getElementById('material').value;
-  const scenario = document.getElementById('scenario').value;
-  const mass = parseFloat(document.getElementById('massTon').value || '0');
-  const price = parseFloat(document.getElementById('carbonPrice').value || '0');
-  let ghg = 0;
-  let detail = '';
+      const fee = wasteAmount * rate * index;
+      const recycleValue = wasteAmount * 30;
+      const carbonReduction = Math.round(wasteAmount * EF_MSW_EA_KGKG * 1000) / 1000; // 공식 배출계수 기반 (kgCO₂)
+      const jobCreation = (wasteAmount / 1000) * 0.1;
 
-  if(mat === 'msw_ea'){
-    // Weighted average EF by Eastern Asia composition
-    let EFmix = 0;
-    EAST_ASIA_COMPOSITION.forEach(([label,pct]) => {
-      // map label to key
-      const key = MATERIALS.find(x=> x.name===label)?.key;
-      if(!key) return;
-      EFmix += (pct/100.0) * efFor(key);
-    });
-    ghg = (scenario==='recycle' ? -1 : 1) * mass * EFmix;
-    detail = `동아시아 평균 구성 가중배출계수 EFₘᵢₓ = Σ(구성비 × EFᵢ) = ${EFmix.toFixed(3)} tCO₂/톤·습`;
-  } else {
-    const EF = efFor(mat);
-    ghg = (scenario==='recycle' ? -1 : 1) * mass * EF;
-    const m = MATERIALS.find(x=> x.key===mat);
-    detail = `${m?.name||''}: EF = DM(${m.DM}%) × C(${m.C}%) × 화석(${m.fossil}%) × 44/12 ÷ 10000 = ${EF.toFixed(3)} tCO₂/톤·습`;
-  }
+      document.getElementById("result").innerHTML =
+        `<strong>폐기물처분부담금:</strong> ${Math.round(fee).toLocaleString()}원<br>` +
+        `<strong>🌍 온실가스 절감:</strong> ${carbonReduction.toLocaleString()}kg CO₂<br>` +
+        `<strong>👷 일자리 창출:</strong> ${jobCreation.toFixed(3)} 명<br>` +
+        `<strong>🌱 환경보전 가치:</strong> ${recycleValue.toLocaleString()}원`;
 
-  // Display (recycle => negative = 절감)
-  const out = document.getElementById('ghg');
-  const v = (scenario==='recycle' ? -ghg : ghg); // 절감량은 양수로 표시
-  out.textContent = v.toFixed(3);
+      const ctx = document.getElementById("costChart").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["처분부담금", "환경보전 가치"],
+          datasets: [{
+            label: "비용/편익 (원)",
+            data: [fee, recycleValue],
+            backgroundColor: ["#f87171", "#34d399"]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `${context.dataset.label}: ${Math.round(context.raw).toLocaleString()}원`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: value => `${value.toLocaleString()}원`
+              }
+            }
+          }
+        }
+      });
+    }
 
-  // Optional value in KRW
-  const value = v * (isNaN(price)?0:price);
-  document.getElementById('valueKRW').textContent = isNaN(value)?'-':formatKRW(value);
+    let map;
+    let marker;
+    let infoWindow;
 
-  // Formula box
-  document.getElementById('formula').innerHTML = 
-    `<div><b>산식 설명</b> — ${detail}</div>
-     <div class="muted">소각 CO₂는 화석기원 탄소만 포함(IPCC 지침). 종이/목재 등 바이오매스는 화석비율 0%로 처리.</div>`;
-}
+    function initMap() {
+      map = new naver.maps.Map('map', {
+        center: new naver.maps.LatLng(37.5665, 126.9780),
+        zoom: 12
+      });
+    }
 
-function renderTables(){
-  // EF table
-  const tbody = document.querySelector('#efTable tbody');
-  tbody.innerHTML='';
-  MATERIALS.forEach(m => {
-    const EF = efFor(m.key);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.name}</td>
-      <td>${m.DM}</td><td>${m.C}</td><td>${m.fossil}</td><td>${EF.toFixed(3)}</td>`;
-    tbody.appendChild(tr);
-  });
+    function searchRegion() {
+      const keyword = document.getElementById('regionInput').value.trim();
+      if (!keyword) {
+        alert('지역명을 입력해주세요. 예: 광주 재활용');
+        return;
+      }
 
-  // Composition table
-  const tbody2 = document.querySelector('#compTable tbody');
-  tbody2.innerHTML='';
-  EAST_ASIA_COMPOSITION.forEach(([name,pct]) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${name}</td><td>${pct}</td>`;
-    tbody2.appendChild(tr);
-  });
-}
+      naver.maps.Service.geocode({ query: keyword }, function(status, response) {
+        if (status !== naver.maps.Service.Status.OK || !response.v2.addresses.length) {
+          return alert('해당 지역의 주소를 찾을 수 없습니다. 다른 키워드를 입력해주세요.');
+        }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initMaterials();
-  renderTables();
-  document.getElementById('calcBtn').addEventListener('click', calculate);
-});
-</script>
+        const item = response.v2.addresses[0];
+        const position = new naver.maps.LatLng(item.y, item.x);
+
+        map.setCenter(position);
+
+        if (marker) marker.setMap(null);
+        marker = new naver.maps.Marker({ map, position });
+
+        if (infoWindow) infoWindow.close();
+        infoWindow = new naver.maps.InfoWindow({
+          content: `<div style="padding:5px;font-size:14px;">${keyword}</div>`
+        });
+        infoWindow.open(map, marker);
+      });
+    }
+
+    window.onload = function () {
+      updateOptions();
+      initMap();
+    };
+  </script>
 </body>
 </html>
