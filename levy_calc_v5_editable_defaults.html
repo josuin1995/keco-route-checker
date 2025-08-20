@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폐기물처분부담금 사전계산 · 재활용 안내 (기본값 편집 가능)</title>
+<style>
+  :root { --gap: 10px; --radius: 12px; --muted:#6b7280; --shadow: 0 10px 20px rgba(0,0,0,.08); }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', sans-serif; margin: 0; padding: 20px; background:#f8fafc; color:#111; }
+  .wrap { max-width: 980px; margin:0 auto; }
+  h1 { margin:0 0 10px 0; font-size:22px; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius: var(--radius); padding:14px; box-shadow: var(--shadow); margin-bottom:12px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  label { display:block; font-weight:600; margin-top:10px; }
+  input, select { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; width:100%; box-sizing:border-box; }
+  .grid { display:grid; gap:12px; }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .muted { color: var(--muted); font-size:12px; }
+  .result { font-size:20px; font-weight:800; }
+  .money { font-size:22px; font-weight:900; }
+  .tag { display:inline-flex; gap:6px; align-items:center; padding:4px 8px; background:#eef2ff; border:1px solid #c7d2fe; border-radius:999px; font-size:12px; margin-right:6px; }
+  .btn { padding:10px 14px; border-radius:10px; border:1px solid #e5e7eb; background:#111; color:#fff; cursor:pointer; }
+  .btn:active { transform: translateY(1px); }
+  details summary { cursor: pointer; user-select:none; font-weight:700; }
+  details .hint { font-size:12px; color:#475569; margin-bottom:8px; }
+  .ef-grid { display:grid; gap:8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .ef-box { border:1px solid #e5e7eb; border-radius:10px; padding:10px; }
+  .ef-box h4 { margin:0 0 6px 0; font-size:13px; }
+  .ef-box label { margin:6px 0 2px; font-weight:600; font-size:12px; }
+  .btn-wide { display:flex; align-items:center; gap:10px; width:100%; padding:12px 16px; border-radius:12px;
+    background: linear-gradient(135deg, #3b82f6, #7c3aed); color:#fff; font-weight:800; text-decoration:none;
+    box-shadow: 0 10px 20px rgba(99,102,241,.28); border:0; justify-content:center; }
+  .btn-wide:hover { filter: brightness(0.98); }
+  .section-title { display:flex; align-items:center; gap:8px; font-size:18px; font-weight:800; margin:0 0 8px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>폐기물처분부담금 사전계산 · 재활용 안내 <span class="muted">(기본값 편집 가능)</span></h1>
+
+    <!-- 입력 -->
+    <div class="card">
+      <div class="grid grid-3">
+        <div>
+          <label for="wasteAmount">처분량(kg)</label>
+          <input id="wasteAmount" type="number" min="0" step="1" placeholder="예: 1000">
+        </div>
+        <div>
+          <label for="wasteType">폐기물 유형</label>
+          <select id="wasteType">
+            <option value="생활폐기물">생활폐기물</option>
+            <option value="사업장폐기물">사업장폐기물</option>
+            <option value="건설폐기물">건설폐기물</option>
+          </select>
+        </div>
+        <div>
+          <label for="treat">처리 방식</label>
+          <select id="treat">
+            <option value="소각">소각</option>
+            <option value="매립">매립</option>
+          </select>
+        </div>
+        <div id="charWrap">
+          <label for="char">폐기물 특성 <span class="muted">(사업장폐기물만)</span></label>
+          <select id="char">
+            <option value="가연성">가연성</option>
+            <option value="불연성">불연성</option>
+          </select>
+        </div>
+        <div>
+          <label for="year">처분년도</label>
+          <select id="year"></select>
+        </div>
+        <div>
+          <label for="unitCostKRW">재활용/처리 단가 (원/톤) <span class="muted">(기본값, 편집 가능)</span></label>
+          <input id="unitCostKRW" type="number" min="0" step="1000">
+        </div>
+        <div>
+          <label for="empCoef">고용유발계수 (명/10억 원) <span class="muted">(기본값, 편집 가능)</span></label>
+          <input id="empCoef" type="number" min="0" step="0.01">
+        </div>
+        <div>
+          <label for="etsPrice">ETS 기준가 (원/tCO₂) <span class="muted">(기본값, 편집 가능)</span></label>
+          <input id="etsPrice" type="number" min="0" step="1">
+        </div>
+      </div>
+      <div id="assumptionTags" class="row" style="margin-top:6px;"></div>
+      <div class="row" style="margin-top:12px;">
+        <button id="calcBtn" type="button" class="btn">계산하기</button>
+        <span class="muted">처분량만 입력해도 자동 계산됩니다.</span>
+      </div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="card">
+      <div class="row"><div>💰 <strong>예상 처분부담금:</strong> <span id="outLevy" class="money">-</span> <span class="muted">원</span> <span id="levyMeta" class="muted"></span></div></div>
+      <div class="row"><div>🌍 <strong>온실가스 절감(추정):</strong> <span id="outGHG" class="result">-</span> <span class="muted">kg CO₂e</span></div></div>
+      <div class="row"><div>👷 <strong>일자리 창출(추정):</strong> <span id="outJOB" class="result">-</span> <span class="muted">명</span></div></div>
+      <div class="row"><div>🌱 <strong>환경보전 가치(ETS 환산):</strong> <span id="outVAL" class="result">-</span> <span class="muted">원</span></div></div>
+      <div class="muted" style="margin-top:8px;">
+        * 부담금 = 처분량(kg) × <b>부과요율(원/kg)</b> × <b>산정지수</b><br>
+        * 요율표 및 연도지수는 아래 고급설정에서 수정 가능(브라우저 저장). 아래 기본값은 입력칸에 미리 채워두었습니다.
+      </div>
+    </div>
+
+    <!-- 고급설정 -->
+    <div class="card">
+      <details>
+        <summary>⚙️ 고급설정 · EF/요율(원/kg)/연도지수 편집</summary>
+        <div class="hint">기관 최신본으로 교체 시 여기를 사용하세요. 값은 이 브라우저에 저장됩니다.</div>
+        <div class="ef-grid">
+          <div class="ef-box">
+            <h4>요율(원/kg) · 소각</h4>
+            <label>생활폐기물</label><input id="rate_inc_life_kg" type="number" step="0.1">
+            <label>사업장 · 가연성</label><input id="rate_inc_ind_comb_kg" type="number" step="0.1">
+            <label>사업장 · 불연성</label><input id="rate_inc_ind_incomb_kg" type="number" step="0.1">
+            <label>건설폐기물</label><input id="rate_inc_constr_kg" type="number" step="0.1">
+          </div>
+          <div class="ef-box">
+            <h4>요율(원/kg) · 매립</h4>
+            <label>생활폐기물</label><input id="rate_lf_life_kg" type="number" step="0.1">
+            <label>사업장 · 가연성</label><input id="rate_lf_ind_comb_kg" type="number" step="0.1">
+            <label>사업장 · 불연성</label><input id="rate_lf_ind_incomb_kg" type="number" step="0.1">
+            <label>건설폐기물</label><input id="rate_lf_constr_kg" type="number" step="0.1">
+          </div>
+          <div class="ef-box">
+            <h4>산정지수 (년도별)</h4>
+            <label>2018</label><input id="idx_2018" type="number" step="0.001">
+            <label>2019</label><input id="idx_2019" type="number" step="0.001">
+            <label>2020</label><input id="idx_2020" type="number" step="0.001">
+            <label>2021</label><input id="idx_2021" type="number" step="0.001">
+            <label>2022</label><input id="idx_2022" type="number" step="0.001">
+            <label>2023</label><input id="idx_2023" type="number" step="0.001">
+            <label>2024</label><input id="idx_2024" type="number" step="0.001">
+            <label>2025</label><input id="idx_2025" type="number" step="0.001">
+          </div>
+          <div class="ef-box">
+            <h4>EF(kgCO₂/kg) · 참고용(재활용 절감 추정)</h4>
+            <label>소각 · 사업장 가연성</label><input id="ef_inc_ind_comb" type="number" step="0.001">
+            <label>소각 · 사업장 불연성</label><input id="ef_inc_ind_incomb" type="number" step="0.001">
+            <label>소각 · 건설폐기물</label><input id="ef_inc_constr" type="number" step="0.001">
+            <label>매립 · 사업장 가연성</label><input id="ef_lf_ind_comb" type="number" step="0.001">
+            <label>매립 · 사업장 불연성</label><input id="ef_lf_ind_incomb" type="number" step="0.001">
+            <label>매립 · 건설폐기물</label><input id="ef_lf_constr" type="number" step="0.001">
+            <label>연도 보정(2015–18 / 2019–22 / 2023+)</label>
+            <input id="yf_2015_2018" type="number" step="0.01">
+            <input id="yf_2019_2022" type="number" step="0.01">
+            <input id="yf_2023p" type="number" step="0.01">
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button id="saveCfg" class="btn" type="button">설정 저장</button>
+          <span class="muted">※ 기본값: 요율표(생활15/10, 사업장25·10·10, 건설30·10), 산정지수(2018~2025 = 1,1.019,1.023,1.042,1.059,1.132,1.168,1.192)</span>
+        </div>
+      </details>
+    </div>
+
+    <!-- 순환자원정보센터 안내 -->
+    <div class="card" id="recenterServices">
+      <div class="section-title"><span>♻️</span><span>재활용 전환을 위한 순환정보센터 안내</span></div>
+      <div class="row" style="flex-direction:column; align-items:stretch; gap:10px;">
+        <a class="btn-wide" href="https://www.re.or.kr/circul/listPubCirculSup.do" target="_blank" rel="noopener">
+          <span class="ico">▶</span><span>유통지원 신청 바로가기</span>
+        </a>
+        <a class="btn-wide" href="https://www.re.or.kr/info/listTrtmPage.do" target="_blank" rel="noopener">
+          <span class="ico">▶</span><span>재활용 처리업체 찾기</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===== 기본값(처음에 입력칸에 채워 넣습니다. 이후 사용자가 수정 가능) =====
+const DEFAULTS = {
+  unitCostKRW: 150000,   // 원/톤
+  empCoef: 10,           // 명/10억 원
+  etsPrice: 90000        // 원/tCO2
+};
+// ===============================================================
+
+const STORE_CFG = 'levy_v4_cfg';
+
+const defaultRatesKG = {
+  incineration: { life: 10, industrial: { combustible: 10, incombustible: 0 }, construction: 10 },
+  landfill:    { life: 15, industrial: { combustible: 25, incombustible: 10 }, construction: 30 }
+};
+const defaultIndex = { 2018:1.000, 2019:1.019, 2020:1.023, 2021:1.042, 2022:1.059, 2023:1.132, 2024:1.168, 2025:1.192 };
+const defaultEF = {
+  incineration: { industrial: { combustible: 0.26, incombustible: 0.12 }, construction: 0.08 },
+  landfill:     { industrial: { combustible: 0.50, incombustible: 0.35 }, construction: 0.20 },
+  yearFactor:   { y2015_2018:1.00, y2019_2022:0.93, y2023p:0.88 }
+};
+
+function loadCfg(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_CFG) || 'null');
+    if(!saved) return { ratesKG: defaultRatesKG, indexByYear: defaultIndex, ef: defaultEF };
+    const ratesKG = Object.assign({}, defaultRatesKG, saved.ratesKG||{}, {
+      incineration: Object.assign({}, defaultRatesKG.incineration, saved?.ratesKG?.incineration||{}, { industrial: Object.assign({}, defaultRatesKG.incineration.industrial, saved?.ratesKG?.incineration?.industrial||{}) }),
+      landfill:    Object.assign({}, defaultRatesKG.landfill,    saved?.ratesKG?.landfill||{},    { industrial: Object.assign({}, defaultRatesKG.landfill.industrial,    saved?.ratesKG?.landfill?.industrial||{}) }),
+    });
+    const indexByYear = Object.assign({}, defaultIndex, saved.indexByYear||{});
+    const ef = Object.assign({}, defaultEF, saved.ef||{}, {
+      incineration: Object.assign({}, defaultEF.incineration, saved?.ef?.incineration||{}, { industrial: Object.assign({}, defaultEF.incineration.industrial, saved?.ef?.incineration?.industrial||{}) }),
+      landfill:    Object.assign({}, defaultEF.landfill,    saved?.ef?.landfill||{},    { industrial: Object.assign({}, defaultEF.landfill.industrial,    saved?.ef?.landfill?.industrial||{}) }),
+      yearFactor:  Object.assign({}, defaultEF.yearFactor,  saved?.ef?.yearFactor||{})
+    });
+    return { ratesKG, indexByYear, ef };
+  } catch(e){ return { ratesKG: defaultRatesKG, indexByYear: defaultIndex, ef: defaultEF }; }
+}
+function saveCfg(cfg){ localStorage.setItem(STORE_CFG, JSON.stringify(cfg)); }
+
+function uiLoad(){
+  const {ratesKG, indexByYear, ef} = loadCfg();
+  document.getElementById('rate_inc_life_kg').value       = ratesKG.incineration.life;
+  document.getElementById('rate_inc_ind_comb_kg').value   = ratesKG.incineration.industrial.combustible;
+  document.getElementById('rate_inc_ind_incomb_kg').value = ratesKG.incineration.industrial.incombustible;
+  document.getElementById('rate_inc_constr_kg').value     = ratesKG.incineration.construction;
+  document.getElementById('rate_lf_life_kg').value        = ratesKG.landfill.life;
+  document.getElementById('rate_lf_ind_comb_kg').value    = ratesKG.landfill.industrial.combustible;
+  document.getElementById('rate_lf_ind_incomb_kg').value  = ratesKG.landfill.industrial.incombustible;
+  document.getElementById('rate_lf_constr_kg').value      = ratesKG.landfill.construction;
+  ['2018','2019','2020','2021','2022','2023','2024','2025'].forEach(y=>{
+    document.getElementById('idx_'+y).value = indexByYear[y]||'';
+  });
+  document.getElementById('ef_inc_ind_comb').value   = ef.incineration.industrial.combustible;
+  document.getElementById('ef_inc_ind_incomb').value = ef.incineration.industrial.incombustible;
+  document.getElementById('ef_inc_constr').value     = ef.incineration.construction;
+  document.getElementById('ef_lf_ind_comb').value    = ef.landfill.industrial.combustible;
+  document.getElementById('ef_lf_ind_incomb').value  = ef.landfill.industrial.incombustible;
+  document.getElementById('ef_lf_constr').value      = ef.landfill.construction;
+
+  // 기본값 입력칸에 채우기 (한 번 세팅)
+  const unitEl = document.getElementById('unitCostKRW');
+  const empEl  = document.getElementById('empCoef');
+  const etsEl  = document.getElementById('etsPrice');
+  if(!unitEl.value) unitEl.value = DEFAULTS.unitCostKRW;
+  if(!empEl.value)  empEl.value  = DEFAULTS.empCoef;
+  if(!etsEl.value)  etsEl.value  = DEFAULTS.etsPrice;
+
+  renderAssumptionTags();
+}
+function uiSave(){
+  const {ratesKG, indexByYear, ef} = loadCfg();
+  ratesKG.incineration.life                    = parseFloat(document.getElementById('rate_inc_life_kg').value)||0;
+  ratesKG.incineration.industrial.combustible  = parseFloat(document.getElementById('rate_inc_ind_comb_kg').value)||0;
+  ratesKG.incineration.industrial.incombustible= parseFloat(document.getElementById('rate_inc_ind_incomb_kg').value)||0;
+  ratesKG.incineration.construction            = parseFloat(document.getElementById('rate_inc_constr_kg').value)||0;
+  ratesKG.landfill.life                        = parseFloat(document.getElementById('rate_lf_life_kg').value)||0;
+  ratesKG.landfill.industrial.combustible      = parseFloat(document.getElementById('rate_lf_ind_comb_kg').value)||0;
+  ratesKG.landfill.industrial.incombustible    = parseFloat(document.getElementById('rate_lf_ind_incomb_kg').value)||0;
+  ratesKG.landfill.construction                = parseFloat(document.getElementById('rate_lf_constr_kg').value)||0;
+  ['2018','2019','2020','2021','2022','2023','2024','2025'].forEach(y=>{
+    indexByYear[y] = parseFloat(document.getElementById('idx_'+y).value)||1;
+  });
+  ef.incineration.industrial.combustible   = parseFloat(document.getElementById('ef_inc_ind_comb').value)||0;
+  ef.incineration.industrial.incombustible = parseFloat(document.getElementById('ef_inc_ind_incomb').value)||0;
+  ef.incineration.construction             = parseFloat(document.getElementById('ef_inc_constr').value)||0;
+  ef.landfill.industrial.combustible       = parseFloat(document.getElementById('ef_lf_ind_comb').value)||0;
+  ef.landfill.industrial.incombustible     = parseFloat(document.getElementById('ef_lf_ind_incomb').value)||0;
+  ef.landfill.construction                 = parseFloat(document.getElementById('ef_lf_constr').value)||0;
+  saveCfg({ratesKG, indexByYear, ef});
+}
+
+function getSelValue(id){ const el=document.getElementById(id); return el ? el.value : ''; }
+function getNum(id){ const el=document.getElementById(id); return el ? (parseFloat(el.value)||0) : 0; }
+function setText(id, v){ const el=document.getElementById(id); if(el){ el.textContent=v; } }
+function showCharIfNeeded(){
+  const wt = getSelValue('wasteType');
+  const wrap = document.getElementById('charWrap');
+  wrap.style.display = (wt==='사업장폐기물') ? 'block' : 'none';
+}
+
+function renderAssumptionTags(){
+  const tags = document.getElementById('assumptionTags');
+  const unit = getNum('unitCostKRW');
+  const emp  = getNum('empCoef');
+  const ets  = getNum('etsPrice');
+  tags.innerHTML = [
+    `<span class="tag">단가 ${unit.toLocaleString()}원/톤</span>`,
+    `<span class="tag">고용유발계수 ${emp}명/10억</span>`,
+    `<span class="tag">ETS 기준가 ${ets.toLocaleString()}원/tCO₂</span>`
+  ].join('');
+}
+
+function pickRateKG(cfg){
+  const {ratesKG, indexByYear} = cfg;
+  const wt = getSelValue('wasteType');
+  const tr = getSelValue('treat');
+  const ch = getSelValue('char');
+  const yr = getSelValue('year');
+  const idx = indexByYear[yr] || 1;
+
+  let base = 0;
+  if(tr==='소각'){
+    if(wt==='생활폐기물') base = ratesKG.incineration.life;
+    else if(wt==='건설폐기물') base = ratesKG.incineration.construction;
+    else base = (ch==='불연성') ? ratesKG.incineration.industrial.incombustible : ratesKG.incineration.industrial.combustible;
+  }else{ // 매립
+    if(wt==='생활폐기물') base = ratesKG.landfill.life;
+    else if(wt==='건설폐기물') base = ratesKG.landfill.construction;
+    else base = (ch==='불연성') ? ratesKG.landfill.industrial.incombustible : ratesKG.landfill.industrial.combustible;
+  }
+
+  const note = (wt==='사업장폐기물' && ch==='불연성' && tr==='소각') ? ' (해당없음: 불연성 소각)' : '';
+  return { base, idx, note };
+}
+
+function pickEF(cfg){
+  const {ef} = cfg;
+  const wt = getSelValue('wasteType');
+  const tr = getSelValue('treat');
+  const ch = getSelValue('char');
+  const yr = parseInt(getSelValue('year'),10);
+  let base=0;
+  if(tr==='소각'){
+    if(wt==='건설폐기물'){ base = ef.incineration.construction; }
+    else { base = (ch==='불연성') ? ef.incineration.industrial.incombustible : ef.incineration.industrial.combustible; }
+  }else{
+    if(wt==='건설폐기물'){ base = ef.landfill.construction; }
+    else { base = (ch==='불연성') ? ef.landfill.industrial.incombustible : ef.landfill.industrial.combustible; }
+  }
+  const yf = (yr<=2018)?ef.yearFactor.y2015_2018:(yr<=2022?ef.yearFactor.y2019_2022:ef.yearFactor.y2023p);
+  return base * yf;
+}
+
+function calculate(){
+  const cfg = loadCfg();
+  const kg = getNum('wasteAmount');
+  if(kg<=0){
+    setText('outLevy','-'); setText('levyMeta',''); setText('outGHG','-'); setText('outJOB','-'); setText('outVAL','-'); return;
+  }
+  const { base, idx, note } = pickRateKG(cfg);
+  const levy = kg * base * idx;
+  setText('outLevy', Math.round(levy).toLocaleString());
+  setText('levyMeta', ` (요율 ${base}원/kg × 산정지수 ${idx} × ${kg.toLocaleString()}kg${note})`);
+
+  const ef = pickEF(cfg);
+  const ghg = kg * ef;
+  setText('outGHG', Math.round(ghg).toLocaleString());
+
+  const ton = kg/1000;
+  const unitCost = getNum('unitCostKRW');
+  const spend = ton * unitCost;
+  const emp = getNum('empCoef');
+  const ets = getNum('etsPrice');
+  const jobs = (spend/1_000_000_000) * emp;
+  const val  = (ghg/1000) * ets;
+  setText('outJOB', jobs.toFixed(3));
+  setText('outVAL', Math.round(val).toLocaleString());
+
+  renderAssumptionTags();
+}
+
+function bind(){
+  document.getElementById('calcBtn').addEventListener('click', calculate);
+  ['wasteAmount','unitCostKRW','empCoef','etsPrice'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  });
+  ['wasteType','treat','char','year'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('change', ()=>{ showCharIfNeeded(); calculate(); });
+  });
+  document.getElementById('saveCfg').addEventListener('click', ()=>{ uiSave(); calculate(); });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  // 연도 채우기
+  const sel = document.getElementById('year');
+  const now = new Date();
+  const maxY = Math.max(2025, now.getFullYear());
+  for(let y=2018; y<=maxY; y++){
+    const op = document.createElement('option'); op.value=String(y); op.textContent=String(y);
+    sel.appendChild(op);
+  }
+  sel.value = String(Math.min(maxY, now.getFullYear()));
+
+  uiLoad();
+  showCharIfNeeded();
+  bind();
+  calculate();
+});
+</script>
+</body>
+</html>
