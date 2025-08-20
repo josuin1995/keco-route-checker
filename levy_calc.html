@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폐기물처분부담금 사전계산 · 재활용 안내</title>
+<style>
+  :root { --gap: 10px; --radius: 12px; --muted:#6b7280; --shadow: 0 10px 20px rgba(0,0,0,.08); }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', sans-serif; margin: 0; padding: 20px; background:#f8fafc; color:#111; }
+  .wrap { max-width: 980px; margin:0 auto; }
+  h1 { margin:0 0 10px 0; font-size:22px; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius: var(--radius); padding:14px; box-shadow: var(--shadow); margin-bottom:12px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  label { display:block; font-weight:600; margin-top:10px; }
+  input, select { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; width:100%; box-sizing:border-box; }
+  .grid { display:grid; gap:12px; }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .muted { color: var(--muted); font-size:12px; }
+  .result { font-size:20px; font-weight:800; }
+  .btn { padding:10px 14px; border-radius:10px; border:1px solid #e5e7eb; background:#111; color:#fff; cursor:pointer; }
+  .btn:active { transform: translateY(1px); }
+  .hl { background: linear-gradient(transparent 70%, #e0f7f1 0); border-radius:6px; padding:0 2px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>폐기물처분부담금 사전계산 · 재활용 안내 <span class="muted">(IPCC·IO·ETS 반영)</span></h1>
+
+    <div class="card">
+      <div class="grid grid-3">
+        <div>
+          <label for="wasteAmount">배출량(kg)</label>
+          <input id="wasteAmount" type="number" min="0" step="1" placeholder="예: 1000">
+        </div>
+        <div>
+          <label for="unitCostKRW">처리/재활용 단가 (원/톤) <span class="muted">(기본 150,000)</span></label>
+          <input id="unitCostKRW" type="number" min="0" step="1000" placeholder="예: 150000">
+        </div>
+        <div>
+          <label for="empCoef">고용유발계수 (명/10억 원) <span class="muted">(기본 10)</span></label>
+          <input id="empCoef" type="number" min="0" step="0.01" placeholder="업종별 값 입력">
+        </div>
+        <div>
+          <label for="etsPrice">ETS 기준가 (원/tCO₂) <span class="muted">(기본 90,000)</span></label>
+          <input id="etsPrice" type="number" min="0" step="1" placeholder="예: 90000">
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="calcBtn" type="button" class="btn">비용 계산</button>
+        <span class="muted">배출량만 입력해도 자동 계산됩니다.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>🌍 <strong>온실가스 절감:</strong> <span id="outGHG" class="result">-</span> <span class="muted">kg CO₂</span> <span class="muted">(IPCC 공식 EF)</span></div>
+      </div>
+      <div class="row">
+        <div>👷 <strong>일자리 창출:</strong> <span id="outJOB" class="result">-</span> <span class="muted">명</span> <span class="muted">(IO 고용유발계수)</span></div>
+      </div>
+      <div class="row">
+        <div>🌱 <strong>환경보전 가치:</strong> <span id="outVAL" class="result">-</span> <span class="muted">원</span> <span class="muted">(K-ETS 기준가)</span></div>
+      </div>
+      <div class="muted" style="margin-top:8px;">
+        EF(동아시아 MSW 가중) ≈ <span class="hl">0.207451 kgCO₂/kg</span> (= 0.20745 tCO₂/톤·습) — IPCC 2006 GL Vol.5 Ch.2 Table 2.4, 2019 Refinement Vol.5.
+      </div>
+    </div>
+
+    <div class="card muted">
+      <div><b>산식 요약</b></div>
+      <div>온실가스 절감(kg) = 배출량(kg) × EF(kgCO₂/kg)</div>
+      <div>일자리(명) = ((배출량(kg)/1000) × 단가(원/톤) / 1,000,000,000) × 고용유발계수(명/10억 원)</div>
+      <div>환경보전가치(원) = (온실가스 절감(kg) / 1000) × ETS 기준가(원/tCO₂)</div>
+    </div>
+  </div>
+
+<script>
+// ===== Constants (공식 계수) =====
+const EF_MSW_EA_KGKG = 0.2074510533; // kgCO2/kg (0.20745 tCO2/t-wet)
+
+// ==== LocalStorage defaults ====
+const LSKEY='levy_io_ets_defaults_v1';
+function getEl(id){ return document.getElementById(id); }
+function getNum(id){ const el=getEl(id); return el ? (parseFloat(el.value)||0) : 0; }
+function loadDefaults(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LSKEY) || '{}');
+    const defs = Object.assign({ unitCostKRW:150000, empCoef:10, etsPrice:90000 }, saved);
+    ['unitCostKRW','empCoef','etsPrice'].forEach(id=>{
+      const el = getEl(id); if(el && (el.value==='' || el.value==null)) el.value = defs[id];
+    });
+  }catch(e){}
+}
+function saveDefaults(){
+  try{
+    const vals={};
+    ['unitCostKRW','empCoef','etsPrice'].forEach(id=> vals[id]=getNum(id));
+    localStorage.setItem(LSKEY, JSON.stringify(vals));
+  }catch(e){}
+}
+
+// ===== Core calculation =====
+function calculate(){
+  const wasteAmount = getNum('wasteAmount'); // kg
+  // 1) GHG reduction
+  const carbonReduction = Math.round(wasteAmount * EF_MSW_EA_KGKG * 1000) / 1000; // kg CO2
+  // 2) ETS value
+  const etsPrice = getNum('etsPrice'); // KRW/tCO2
+  const recycleValue = (etsPrice>0) ? (carbonReduction/1000) * etsPrice : 0; // KRW
+  // 3) Jobs (IO)
+  const unitCost = getNum('unitCostKRW'); // KRW/ton
+  const empCoef = getNum('empCoef'); // persons per billion KRW
+  const expenditure = (wasteAmount/1000) * unitCost; // KRW
+  const jobCreation = (expenditure/1_000_000_000) * empCoef; // persons
+
+  // Output
+  const outGHG = getEl('outGHG');
+  const outJOB = getEl('outJOB');
+  const outVAL = getEl('outVAL');
+  outGHG.textContent = isFinite(carbonReduction) ? carbonReduction.toLocaleString() : '-';
+  outJOB.textContent = isFinite(jobCreation) ? jobCreation.toFixed(3) : '-';
+  outVAL.textContent = isFinite(recycleValue) ? Math.round(recycleValue).toLocaleString() : '-';
+}
+
+// ===== Wiring =====
+document.addEventListener('DOMContentLoaded', function(){
+  loadDefaults();
+  // Auto-calc on inputs
+  ['wasteAmount','unitCostKRW','empCoef','etsPrice'].forEach(id=>{
+    const el = getEl(id); if(!el) return;
+    ['input','change'].forEach(evt=> el.addEventListener(evt, ()=>{ saveDefaults(); calculate(); }));
+  });
+  // Button (guaranteed)
+  const btn = getEl('calcBtn');
+  if(btn){
+    btn.type = 'button';
+    btn.addEventListener('click', (e)=>{ e.preventDefault(); calculate(); });
+  }
+  // First run
+  calculate();
+});
+</script>
+</body>
+</html>
