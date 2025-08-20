@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-eco 플로우 체크</title>
+<style>
+  :root { --gap: 10px; --radius: 12px; --muted:#6b7280; --shadow: 0 10px 20px rgba(0,0,0,.08); }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', sans-serif; margin: 0; padding: 0; background:#f5f7fb; color:#111; }
+  header { position: sticky; top:0; z-index: 20; background:#fff; box-shadow: var(--shadow); }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 16px 20px; }
+  .brandbar { display:flex; align-items:center; gap:12px; }
+  .brand-mark { display:flex; align-items:center; gap:10px; padding:8px 10px; }
+  .brand-mark img { height:40px; object-fit: contain; }
+  .brand-name { display:flex; flex-direction:column; line-height:1.2; }
+  .brand-name .org { font-size:13px; color:#374151; }
+  .brand-name .app { font-size:20px; font-weight:800; }
+  .toolbar, .topbar, .card { border:1px solid #e5e7eb; border-radius: var(--radius); background:#fff; }
+  main .wrap { display: grid; gap: 16px; }
+  .toolbar, .topbar { padding: 12px; }
+  .card { padding: 12px; }
+  .row { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; }
+  select, input[type="text"], input[type="date"], input[type="url"] { padding: 8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
+  button { padding: 8px 12px; border:1px solid #cfcfcf; border-radius:8px; background:#f6f6f6; cursor:pointer; }
+  button.primary { border-color:#111; background:#111; color:#fff; }
+  table { width:100%; border-collapse: collapse; background:#fff; }
+  th, td { border-bottom:1px solid #eee; padding: 10px; text-align:left; vertical-align: middle; }
+  th { font-weight:600; background:#f4f6f8; }
+  .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; border:1px solid #e5e7eb; background:#fafafa; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .note { font-size:12px; color:#6b7280; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; font-size:12px; }
+  .chip .dd { font-weight:700; }
+  .chip.warn { background:#fff5f5; border-color:#f5c2c2; }
+  .chip.ok { background:#f0fff4; border-color:#8fd19e; }
+  .chip.err { background:#fff5f5; border-color:#f5c2c2; }
+  .footer { margin-top:16px; font-size:12px; color:#374151; display:flex; gap:24px; flex-wrap:wrap; }
+  .footer .box { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; }
+  /* Bottom CTA */
+  .cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border:1px dashed #c7d2fe; background:#eef2ff; border-radius:12px; }
+  .cta .btn { padding:12px 16px; border-radius:12px; background:#111; color:#fff; border:1px solid #111; font-weight:800; text-decoration:none; }
+  .cta .btn:hover { filter: brightness(0.98); }
+  /* 자료실 */
+  .docs { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); }
+  .doc { display:flex; gap:12px; padding:14px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
+  .doc .ico { font-size:26px; }
+  .doc .title { font-weight:800; }
+  .doc .desc { font-size:12px; color:#6b7280; }
+  .doc .actions a { display:inline-block; margin-right:8px; text-decoration:none; border:1px solid #e5e7eb; padding:6px 10px; border-radius:10px; font-size:12px; font-weight:700; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap brandbar">
+      <div class="brand-mark">
+        <img src="assets/img/keco_logo.png" alt="K-eco 로고" />
+        <div class="brand-name">
+          <div class="org">한국환경공단</div>
+          <div class="app">K-eco 플로우 체크</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <!-- 상단: 사용자 스위치 + 서버 동기화 + 내보내기 -->
+      <div class="topbar">
+        <div class="row">
+          <div class="left row">
+            <label class="row" style="gap:6px;">
+              <span class="muted">사용자 ID</span>
+              <input id="userId" type="text" placeholder="예: 회사명_담당자 또는 사번" style="min-width:220px">
+            </label>
+            <button id="switchUser">열기/전환</button>
+            <span id="saveState" class="muted">미선택</span>
+            <div class="sep"></div>
+            <button id="exportBtn">내보내기(JSON)</button>
+          </div>
+          <div class="right row">
+            <input id="apiUrl" type="url" placeholder="(선택) 서버 동기화 주소 — Apps Script 웹앱 URL" style="min-width:260px">
+            <button id="pullBtn" title="서버에서 불러오기">서버 불러오기</button>
+            <button id="pushBtn" class="btn primary" title="서버로 올리기">서버 저장</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- D-day 한눈에 -->
+      <div class="card" style="margin:0;">
+        <div class="row" id="ddayRow" style="gap:12px;"></div>
+      </div>
+
+      <!-- 입력/추가 툴바 -->
+      <div class="toolbar">
+        <div class="row">
+          <input id="titleInput" type="text" placeholder="제목 (예: 2025-08-12 A공장 혼합폐기물)" style="min-width:260px">
+          <select id="roleInput" title="역할 선택">
+            <option value="carrier">운반업체</option>
+            <option value="processor">처리업체</option>
+            <option value="both" selected>운반+처리</option>
+          </select>
+          <button id="addBtn" class="btn primary">새 건 추가</button>
+          <span class="muted">※ 제목 입력 후 <b>Enter</b>로도 추가됨</span>
+        </div>
+      </div>
+
+      <!-- 리스트 -->
+      <div class="card">
+        <table id="listTable">
+          <thead>
+            <tr>
+              <th style="width:22%;">제목</th>
+              <th>역할</th>
+              <th>배출일</th>
+              <th>인수완료<div class="muted">(체크 시 인수일 저장)</div></th>
+              <th><span class="tip" tabindex="0" data-tip="참고: 폐기물관리법 시행규칙 제31조 (최신 법령 확인 권장)">폐기물처리기한 ⓘ</span><div class="note">처리자만 수정 가능</div></th>
+              <th>처리완료</th>
+              <th><span class="tip" tabindex="0" data-tip="폐기물처분부담금은 소각·매립 등 최종 처분량에 부과되는 부담금입니다. (모든 폐기물이 대상은 아님)&#10;※ 건설공사 등 대상의 경우 보통 '준공일 후 30일 이내' 신고 필요(기관 지침/법령 확인 요망).">처분부담금 해당여부 ⓘ</span><div class="note">미확인/해당/비해당</div></th>
+              <th>폐기물처분부담금</th>
+              <th>상태</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+
+      <!-- 자료실 (매뉴얼 2개만 남김) -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <h3 style="margin:0 0 8px 0;">자료실</h3>
+          <div class="right row">
+            <button id="diagBtn" title="assets/pdf 내부 파일 존재 여부를 점검합니다.">자료 파일 진단</button>
+            <div id="diagArea" class="row"></div>
+          </div>
+        </div>
+        <div class="docs">
+          <div class="doc">
+            <div class="ico">📘</div>
+            <div style="flex:1;">
+              <div class="title">올바로시스템 매뉴얼</div>
+              <div class="desc">회원가입 → 인계서작성 → 대장관리 → 실적보고</div>
+              <div class="actions">
+                <a href="assets/pdf/allbaro_manual_2025.pdf" target="_blank" rel="noopener">보기</a>
+                <a href="assets/pdf/allbaro_manual_2025.pdf" download>다운로드</a>
+              </div>
+            </div>
+          </div>
+          <div class="doc">
+            <div class="ico">📙</div>
+            <div style="flex:1;">
+              <div class="title">폐기물처분부담금 매뉴얼</div>
+              <div class="desc">부담금 산정 · 감면 · 신고/납부 · 온라인 신고 절차</div>
+              <div class="actions">
+                <a href="assets/pdf/levy_booklet_2025.pdf" target="_blank" rel="noopener">보기</a>
+                <a href="assets/pdf/levy_booklet_2025.pdf" download>다운로드</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:8px;">※ 파일명이 영문/숫자만이라 경로 문제를 최소화했습니다.</div>
+      </div>
+
+      <!-- 하단 고정 안내 버튼: 사전계산 · 재활용 안내 -->
+      <div class="cta">
+        <div>
+          <div style="font-weight:800;">폐기물처분부담금 사전계산 · 재활용 안내</div>
+          <div class="muted">재활용 전환/유통지원/처리업체 찾기 안내 포함</div>
+        </div>
+        <a class="btn" href="levy_calc_v3.html">바로 열기</a>
+      </div>
+
+      <!-- 연락처 -->
+      <div class="footer">
+        <div class="box">올바로시스템 문의: <b>062-949-0754</b></div>
+        <div class="box">폐기물처분부담금 문의: <b>062-949-0305</b></div>
+      </div>
+    </div>
+  </main>
+
+<!-- 실제 앱 스크립트는 프로젝트 원본과 동일하게 두시면 됩니다. -->
+</body>
+</html>
